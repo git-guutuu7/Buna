@@ -58,12 +58,6 @@ app.use('/api', globalLimiter);
 /* ------------------------------------------------------------------ */
 /*  Routes                                                              */
 /* ------------------------------------------------------------------ */
-
-// Root health check (prevents 404 Route Not Found on base URL)
-app.get('/', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' });
-});
-
 app.use('/api/auth', authRouter);
 app.use('/api/wallet', walletRouter);
 app.use('/api/game', gameRouter);
@@ -75,17 +69,6 @@ app.use('/api/cashback', cashbackRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-app.use((req, res) => {
-  res.status(404).json({ error: `Route not found: ${req.method} ${req.originalUrl}` });
-});
-
-app.use((err, req, res, next) => {
-  logger.error(err.message, { stack: err.stack, path: req.path, method: req.method });
-  const status = err.status || 500;
-  const isProd = process.env.NODE_ENV === 'production';
-  res.status(status).json({ error: isProd && status === 500 ? 'Internal server error' : err.message });
 });
 
 /* ------------------------------------------------------------------ */
@@ -116,12 +99,25 @@ async function start() {
   attachBingoSocket(io);
   attachWalletSocket(io);
 
+  // Initialize Telegram Bot with Express Webhook integration BEFORE 404 middleware
+  startBot(app);
+
+  /* ------------------------------------------------------------------ */
+  /*  Catch-all 404 & Error Middlewares (Placed AFTER Webhook route)    */
+  /* ------------------------------------------------------------------ */
+  app.use((req, res) => {
+    res.status(404).json({ error: `Route not found: ${req.method} ${req.originalUrl}` });
+  });
+
+  app.use((err, req, res, next) => {
+    logger.error(err.message, { stack: err.stack, path: req.path, method: req.method });
+    const status = err.status || 500;
+    const isProd = process.env.NODE_ENV === 'production';
+    res.status(status).json({ error: isProd && status === 500 ? 'Internal server error' : err.message });
+  });
+
   server.listen(port, () => {
     logger.info(`Server listening on port ${port} [${process.env.NODE_ENV || 'development'}]`);
-
-    // Start the Telegram bot (long polling) once the HTTP server is up.
-    // No-ops safely if TELEGRAM_BOT_TOKEN isn't set.
-    startBot();
   });
 }
 
