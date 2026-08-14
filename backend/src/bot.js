@@ -18,13 +18,15 @@ function startBot(app) {
     logger.warn('[bot] MINI_APP_URL not set - the Mini App button will not work');
   }
 
-  // Initialize bot without polling
-  const bot = new TelegramBot(token);
+  // Initialize bot with webhooks enabled natively
+  const bot = new TelegramBot(token, { webHook: true });
 
   if (domain && app) {
     const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const webhookUrl = `https://${cleanDomain}/bot${token}`;
+    const webhookPath = `/bot${token}`;
+    const webhookUrl = `https://${cleanDomain}${webhookPath}`;
 
+    // Set webhook with Telegram
     bot
       .setWebHook(webhookUrl, { drop_pending_updates: true })
       .then(() => {
@@ -34,13 +36,9 @@ function startBot(app) {
         logger.error('[bot] Failed to set webhook:', { error: err.message });
       });
 
-    // Handle incoming updates from Telegram
-    app.post(`/bot${token}`, (req, res) => {
-      try {
-        bot.processUpdate(req.body);
-      } catch (err) {
-        logger.error('[bot] Error processing update:', { error: err.message });
-      }
+    // Use the built-in webhook callback handler provided by node-telegram-bot-api
+    app.post(webhookPath, (req, res) => {
+      bot.processUpdate(req.body);
       res.sendStatus(200);
     });
   } else {
@@ -49,47 +47,38 @@ function startBot(app) {
     );
   }
 
-  // General message listener for /start
-  bot.on('message', (msg) => {
-    if (!msg.text) return;
+  bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
+    const chatId = msg.chat.id;
+    const firstName = msg.from.first_name || 'there';
+    const referralCode = match && match[1] ? match[1].trim() : null;
 
-    if (msg.text.startsWith('/start')) {
-      const chatId = msg.chat.id;
-      const firstName = msg.from.first_name || 'there';
-      
-      // Extract referral code if present (/start REF123)
-      const parts = msg.text.split(' ');
-      const referralCode = parts.length > 1 ? parts[1].trim() : null;
-
-      if (referralCode) {
-        pendingReferralCodes.set(chatId, referralCode);
-      }
-
-      bot.sendMessage(
-        chatId,
-        `Welcome to Buna Games, ${firstName}!\n\n` +
-          `To get started, please share your phone number. We use this for withdrawals.`,
-        {
-          reply_markup: {
-            keyboard: [
-              [
-                {
-                  text: 'Share my phone number',
-                  request_contact: true,
-                },
-              ],
-            ],
-            resize_keyboard: true,
-            one_time_keyboard: true,
-          },
-        }
-      ).catch((err) => {
-        logger.error('[bot] Failed to send start message:', { error: err.message });
-      });
+    if (referralCode) {
+      pendingReferralCodes.set(chatId, referralCode);
     }
+
+    bot.sendMessage(
+      chatId,
+      `Welcome to Buna Games, ${firstName}!\n\n` +
+        `To get started, please share your phone number. We use this for withdrawals.`,
+      {
+        reply_markup: {
+          keyboard: [
+            [
+              {
+                text: 'Share my phone number',
+                request_contact: true,
+              },
+            ],
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      }
+    ).catch((err) => {
+      logger.error('[bot] Failed to send start message:', { error: err.message });
+    });
   });
 
-  // Handle contact sharing
   bot.on('contact', async (msg) => {
     const chatId = msg.chat.id;
     const telegramId = msg.from.id;
