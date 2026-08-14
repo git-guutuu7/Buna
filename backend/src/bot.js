@@ -2,7 +2,8 @@ const TelegramBot = require('node-telegram-bot-api');
 const { query } = require('./database');
 const logger = require('./logger');
 
-// Runs the Telegram bot using long polling. Started once from server.js.
+// Runs the Telegram bot using Webhooks to guarantee single-instance routing.
+// Passed the Express `app` instance from server.js.
 //
 // Flow: /start -> bot asks the user to share their phone number via
 // Telegram's native contact button -> once shared, we save it against
@@ -34,9 +35,10 @@ let botInstance = null;
 // Mini App URL.
 const pendingReferralCodes = new Map();
 
-function startBot() {
+function startBot(app) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const miniAppUrl = process.env.MINI_APP_URL;
+  const domain = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.BACKEND_URL;
 
   if (!token) {
     logger.warn('[bot] TELEGRAM_BOT_TOKEN not set - Telegram bot will not start');
@@ -46,15 +48,34 @@ function startBot() {
     logger.warn('[bot] MINI_APP_URL not set - the Mini App button will not work');
   }
 
-  const bot = new TelegramBot(token, {
-    polling: {
-      interval: 300,
-      autoStart: true,
-      params: {
-        timeout: 10,
-      },
-    },
-  });
+  // Initialize bot without long polling
+  const bot = new TelegramBot(token);
+
+  if (domain && app) {
+    // Format full domain cleanly without extra protocols or trailing slashes
+    const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    const webhookUrl = `https://${cleanDomain}/bot${token}`;
+
+    // Set Webhook with Telegram (drops old pending updates & conflicts)
+    bot
+      .setWebHook(webhookUrl, { drop_pending_updates: true })
+      .then(() => {
+        logger.info(`[bot] Webhook successfully registered at: ${webhookUrl}`);
+      })
+      .catch((err) => {
+        logger.error('[bot] Failed to set webhook:', { error: err.message });
+      });
+
+    // Express route to receive incoming updates from Telegram
+    app.post(`/bot${token}`, (req, res) => {
+      bot.processUpdate(req.body);
+      res.sendStatus(200);
+    });
+  } else {
+    logger.warn(
+      '[bot] RAILWAY_PUBLIC_DOMAIN or Express app instance missing - Webhook could not be configured'
+    );
+  }
 
   bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
     const chatId = msg.chat.id;
@@ -141,6 +162,10 @@ function startBot() {
         launchUrl = `${launchUrl}${separator}ref=${encodeURIComponent(referralCode)}`;
       }
 
+      // TEMPORARY DEBUG LOG - remove once referral tracking is confirmed
+      // working. Shows exactly what this chat's captured referral code
+      // was (if any) and the final Mini App URL sent, without touching
+      // the database or requiring a live test account.
       logger.info('[bot] Sending Mini App button', { chatId, referralCode, launchUrl });
 
       bot.sendMessage(chatId, 'Tap below to start playing:', {
@@ -160,17 +185,6 @@ function startBot() {
       bot.sendMessage(chatId, 'Something went wrong saving your number. Please try /start again.');
     }
   });
-
-  // Catches and logs detailed polling errors without crashing the process
-  bot.on('polling_error', (err) => {
-    logger.warn('[bot] Polling network warning:', {
-      code: err.code || 'UNKNOWN',
-      message: err.message,
-      response: err.response ? err.response.body : null,
-    });
-  });
-
-  logger.info('[bot] Telegram bot started (long polling)');
 
   // Store the running instance so getBotInstance() can hand it out to
   // other route files (e.g. admin.js's broadcast route) without creating
