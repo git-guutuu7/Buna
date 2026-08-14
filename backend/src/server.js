@@ -58,6 +58,12 @@ app.use('/api', globalLimiter);
 /* ------------------------------------------------------------------ */
 /*  Routes                                                              */
 /* ------------------------------------------------------------------ */
+
+// Root health check (prevents 404 Route Not Found on base URL)
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'Server is running' });
+});
+
 app.use('/api/auth', authRouter);
 app.use('/api/wallet', walletRouter);
 app.use('/api/game', gameRouter);
