@@ -5,10 +5,9 @@ const logger = require('./logger');
 let botInstance = null;
 const pendingReferralCodes = new Map();
 
-function startBot(app) {
+function startBot() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const miniAppUrl = process.env.MINI_APP_URL;
-  const domain = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.BACKEND_URL;
 
   if (!token) {
     logger.warn('[bot] TELEGRAM_BOT_TOKEN not set - Telegram bot will not start');
@@ -18,38 +17,13 @@ function startBot(app) {
     logger.warn('[bot] MINI_APP_URL not set - the Mini App button will not work');
   }
 
-  // Initialize bot instance
-  const bot = new TelegramBot(token);
+  // Initialize bot with polling
+  const bot = new TelegramBot(token, { polling: true });
 
-  if (domain && app) {
-    const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    const webhookPath = `/bot${token}`;
-    const webhookUrl = `https://${cleanDomain}${webhookPath}`;
-
-    // Set webhook with Telegram
-    bot
-      .setWebHook(webhookUrl, { drop_pending_updates: true })
-      .then(() => {
-        logger.info(`[bot] Webhook successfully registered at: ${webhookUrl}`);
-      })
-      .catch((err) => {
-        logger.error('[bot] Failed to set webhook:', { error: err.message });
-      });
-
-    // Manual webhook endpoint that safely handles updates
-    app.post(webhookPath, (req, res) => {
-      try {
-        bot.processUpdate(req.body);
-      } catch (err) {
-        logger.error('[bot] Error processing update:', { error: err.message });
-      }
-      res.sendStatus(200);
-    });
-  } else {
-    logger.warn(
-      '[bot] RAILWAY_PUBLIC_DOMAIN or Express app instance missing - Webhook could not be configured'
-    );
-  }
+  // Clear any stuck webhooks immediately so polling works cleanly
+  bot.deleteWebHook({ drop_pending_updates: true }).then(() => {
+    logger.info('[bot] Webhook deleted, long polling active');
+  });
 
   bot.onText(/\/start(?:\s+(.+))?/, (msg, match) => {
     const chatId = msg.chat.id;
