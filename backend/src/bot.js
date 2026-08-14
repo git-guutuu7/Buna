@@ -36,11 +36,8 @@ function startBot(app) {
         logger.error('[bot] Failed to set webhook:', { error: err.message });
       });
 
-    // Use the built-in webhook callback handler provided by node-telegram-bot-api
-    app.post(webhookPath, (req, res) => {
-      bot.processUpdate(req.body);
-      res.sendStatus(200);
-    });
+    // Mount the built-in webhook callback handler from node-telegram-bot-api
+    app.use(bot.webhookCallback(webhookPath));
   } else {
     logger.warn(
       '[bot] RAILWAY_PUBLIC_DOMAIN or Express app instance missing - Webhook could not be configured'
