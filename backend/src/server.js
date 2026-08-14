@@ -100,7 +100,7 @@ async function start() {
   attachWalletSocket(io);
 
   // Initialize Telegram Bot with Express Webhook integration BEFORE 404 middleware
-  startBot(app);
+  startBot();
 
   /* ------------------------------------------------------------------ */
   /*  Catch-all 404 & Error Middlewares (Placed AFTER Webhook route)    */
