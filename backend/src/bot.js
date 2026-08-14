@@ -18,8 +18,8 @@ function startBot(app) {
     logger.warn('[bot] MINI_APP_URL not set - the Mini App button will not work');
   }
 
-  // Initialize bot with webhooks enabled natively
-  const bot = new TelegramBot(token, { webHook: true });
+  // Initialize bot instance
+  const bot = new TelegramBot(token);
 
   if (domain && app) {
     const cleanDomain = domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
@@ -36,8 +36,15 @@ function startBot(app) {
         logger.error('[bot] Failed to set webhook:', { error: err.message });
       });
 
-    // Mount the built-in webhook callback handler from node-telegram-bot-api
-    app.use(bot.webhookCallback(webhookPath));
+    // Manual webhook endpoint that safely handles updates
+    app.post(webhookPath, (req, res) => {
+      try {
+        bot.processUpdate(req.body);
+      } catch (err) {
+        logger.error('[bot] Error processing update:', { error: err.message });
+      }
+      res.sendStatus(200);
+    });
   } else {
     logger.warn(
       '[bot] RAILWAY_PUBLIC_DOMAIN or Express app instance missing - Webhook could not be configured'
