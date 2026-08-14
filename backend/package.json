@@ -5,7 +5,7 @@
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node --dns-result-order=ipv4first src/server.js",
     "dev": "nodemon src/server.js",
     "seed:admin": "node src/scripts/createAdmin.js"
   },
