@@ -41,7 +41,16 @@ app.use(helmet());
 app.use(
   cors({
     origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
-    credentials: true,
+    // credentials: true was removed here. This app authenticates with
+    // a Bearer JWT sent in the Authorization header (see api.js's
+    // request interceptor) - it never relies on cookies, so
+    // credentialed CORS mode isn't needed. Leaving it on forces the
+    // browser into stricter cross-origin credential-matching rules,
+    // and some mobile WebViews (including Telegram's in-app browser)
+    // will silently drop the real request after a successful
+    // preflight if that stricter mode isn't satisfied exactly -
+    // which is what was happening here: every OPTIONS preflight to
+    // /auth/telegram succeeded, but the actual POST never arrived.
   })
 );
 app.use(express.json({ limit: '100kb' }));
