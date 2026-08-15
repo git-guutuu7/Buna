@@ -91,13 +91,15 @@ function verifyTelegramInitData(initData, botToken) {
   if (!valid || !isFresh) {
     // TEMPORARY DEBUG LOG - remove once the "Could not verify your
     // Telegram account" reports are resolved. Tells us exactly which
-    // check failed instead of a generic rejection, without logging
-    // the actual hash/token.
+    // check failed instead of a generic rejection. Does not log the
+    // bot token, the hash, or any part of initData itself.
     console.log('[auth] Telegram initData rejected', {
       hashMatched: valid,
       authDate,
       ageSeconds: authDate > 0 ? Math.floor(Date.now() / 1000 - authDate) : null,
       isFresh,
+      botTokenLength: botToken ? botToken.length : 0,
+      botTokenLooksValid: botToken ? /^\d+:[A-Za-z0-9_-]+$/.test(botToken) : false,
     });
     return { valid: false, data: null };
   }
