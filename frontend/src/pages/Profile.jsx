@@ -16,7 +16,7 @@ export default function Profile() {
     navigate('/login');
   };
 
-  const displayName = user?.telegram_first_name || user?.username || 'Player';
+  const displayName = user?.username || 'Player';
 
   return (
     <div className="container" style={{ paddingBottom: 90 }}>
@@ -32,7 +32,7 @@ export default function Profile() {
               <strong>{displayName}</strong>
               <span className="field-hint" style={{ margin: 0 }}>
                 {user?.username}
-                {user?.telegram_phone ? ` • ${user.telegram_phone}` : ''}
+                {user?.phone ? ` • ${user.phone}` : ''}
               </span>
             </div>
           </div>
