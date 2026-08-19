@@ -1,85 +1,160 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { telegramLogin } from '../api.js';
+import { loginUser, registerUser } from '../api.js';
 import { useAuth } from '../App.jsx';
 
-// This app runs inside Telegram as a Mini App. On load, the Telegram Web
-// App SDK gives us a signed `initData` string containing the user's
-// Telegram identity. Referral codes reach us in one of two ways:
-//   1. `tg.initDataUnsafe.start_param` - only populated when the Mini
-//      App is opened via a Direct Link (t.me/bot/app?startapp=CODE) or
-//      the Attachment Menu.
-//   2. A `?ref=CODE` query parameter on the Mini App URL itself - this
-//      is how bot.js delivers it, because this bot opens the Mini App
-//      via an inline `web_app`-type button (after the phone-share
-//      step), and that launch method does NOT populate start_param at
-//      all (a Telegram Bot API limitation, not a bug here).
-// We check both so referral tracking keeps working if the launch method
-// ever changes, and send whichever is present to the backend - it
-// verifies initData's signature and, for brand-new users only, links
-// them to whoever owns that referral code (see auth.js's /telegram route).
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [status, setStatus] = useState('checking');
+
+  // Referral code, if this link was opened as /login?ref=CODE.
+  const referralCode = new URLSearchParams(window.location.search).get('ref');
+
+  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [username, setUsername] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  useEffect(() => {
-    const tg = window.Telegram?.WebApp;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setErrorMsg(null);
 
-    if (!tg || !tg.initData) {
-      setStatus('not-telegram');
+    if (mode === 'register' && password !== confirmPassword) {
+      setErrorMsg('Passwords do not match');
       return;
     }
 
-    tg.ready();
-    tg.expand();
+    setSubmitting(true);
+    try {
+      const res =
+        mode === 'login'
+          ? await loginUser(username.trim(), password)
+          : await registerUser(username.trim(), phone.trim(), password, referralCode);
 
-    const startParam = tg.initDataUnsafe?.start_param || null;
-    const refQueryParam = new URLSearchParams(window.location.search).get('ref');
-    const referralCode = startParam || refQueryParam || null;
-
-    telegramLogin(tg.initData, referralCode)
-      .then((res) => {
-        login(res.data.user, res.data.token);
-        setStatus('success');
-        navigate('/dashboard');
-      })
-      .catch((err) => {
-        setStatus('error');
-        setErrorMsg(err.response?.data?.error || 'Could not verify your Telegram account. Please try again.');
-      });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+      login(res.data.user, res.data.token);
+      navigate('/dashboard');
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || 'Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
-    <div className="container" style={{ maxWidth: 420, marginTop: '15vh', textAlign: 'center' }}>
+    <div className="container" style={{ maxWidth: 420, marginTop: '15vh' }}>
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Buna Games</h2>
+        <h2 style={{ marginTop: 0, textAlign: 'center' }}>Buna Games</h2>
 
-        {status === 'checking' && <p style={{ color: '#9aa0b4' }}>Signing you in with Telegram...</p>}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          <button
+            type="button"
+            className={`btn ${mode === 'login' ? 'btn-primary' : ''}`}
+            style={{ flex: 1 }}
+            onClick={() => {
+              setMode('login');
+              setErrorMsg(null);
+            }}
+          >
+            Log In
+          </button>
+          <button
+            type="button"
+            className={`btn ${mode === 'register' ? 'btn-primary' : ''}`}
+            style={{ flex: 1 }}
+            onClick={() => {
+              setMode('register');
+              setErrorMsg(null);
+            }}
+          >
+            Sign Up
+          </button>
+        </div>
 
-        {status === 'not-telegram' && (
-          <>
-            <p style={{ color: '#9aa0b4' }}>
-              This app only works inside Telegram. Please open it through your Telegram bot.
-            </p>
-            <p style={{ fontSize: 13, color: '#5b6178' }}>
-              If you're testing outside Telegram, use Telegram Desktop or the Telegram app and
-              open the Mini App from your bot's menu button.
-            </p>
-          </>
-        )}
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 14, color: '#9aa0b4' }}>
+              Username
+            </label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              minLength={3}
+              maxLength={30}
+              className="input"
+              style={{ width: '100%' }}
+              autoComplete="username"
+            />
+          </div>
 
-        {status === 'error' && (
-          <>
-            <div className="error-text">{errorMsg}</div>
-            <button className="btn btn-primary" onClick={() => window.location.reload()} style={{ marginTop: 12 }}>
-              Try Again
-            </button>
-          </>
-        )}
+          {mode === 'register' && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 14, color: '#9aa0b4' }}>
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+                placeholder="+251912345678"
+                pattern="^\+251\d{9}$"
+                title="Enter a valid Ethiopian phone number, e.g. +251912345678"
+                className="input"
+                style={{ width: '100%' }}
+                autoComplete="tel"
+              />
+            </div>
+          )}
 
-        {status === 'success' && <p className="success-text">Signed in! Redirecting...</p>}
+          <div style={{ marginBottom: mode === 'register' ? 14 : 20 }}>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 14, color: '#9aa0b4' }}>
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="input"
+              style={{ width: '100%' }}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+            />
+          </div>
+
+          {mode === 'register' && (
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 14, color: '#9aa0b4' }}>
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
+                className="input"
+                style={{ width: '100%' }}
+                autoComplete="new-password"
+              />
+            </div>
+          )}
+
+          {errorMsg && (
+            <div className="error-text" style={{ marginBottom: 14 }}>
+              {errorMsg}
+            </div>
+          )}
+
+          <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={submitting}>
+            {submitting ? 'Please wait...' : mode === 'login' ? 'Log In' : 'Create Account'}
+          </button>
+        </form>
       </div>
     </div>
   );
