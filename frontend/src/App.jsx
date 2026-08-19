@@ -11,7 +11,6 @@ import Referral from './pages/Referral.jsx';
 import Admin from './pages/Admin.jsx';
 import Bingo from './pages/Bingo.jsx';
 import Layout from './Layout.jsx';
-import ChannelGate from './components/ChannelGate.jsx';
 
 export const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -66,12 +65,6 @@ function ProtectedRoute({ children, adminOnly = false, withNav = true }) {
   // never get linked to a referrer.
   if (!user) return <Navigate to={`/login${location.search}`} replace />;
   if (adminOnly && user.role !== 'admin') return <Navigate to="/dashboard" replace />;
-
-  // Admins are exempt from the join-gate so they can never lock
-  // themselves out of the admin panel over this check.
-  if (!adminOnly && (!user.channels_verified || !user.bot_link_clicked)) {
-    return <ChannelGate />;
-  }
 
   return withNav ? <Layout>{children}</Layout> : children;
 }
