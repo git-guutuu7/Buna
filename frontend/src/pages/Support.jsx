@@ -20,15 +20,6 @@ export default function Support() {
         >
           Contact Support on Telegram
         </a>
-        <a
-          className="btn btn-primary"
-          href="https://t.me/buna_games_best"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ display: 'inline-block', textDecoration: 'none', marginTop: 10, marginLeft: 10 }}
-        >
-          Join Our Telegram Channel
-        </a>
       </div>
     </div>
   );
