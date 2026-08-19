@@ -23,9 +23,17 @@ export default function Referral() {
   const [stats, setStats] = useState({ referred_count: 0, total_commission: 0, total_ggr: 0 });
   const [loadingStats, setLoadingStats] = useState(true);
 
-  const botUsername = import.meta.env.VITE_BOT_USERNAME || 'your_bot';
+  // The link actually copied/shared points at the site's real domain, so
+  // it always works no matter what's shown on screen.
   const referralLink = user?.referral_code
-    ? `https://t.me/${botUsername}?start=${user.referral_code}`
+    ? `${window.location.origin}/login?ref=${user.referral_code}`
+    : null;
+
+  // Display-only: shows a friendlier branded label instead of the raw
+  // Vercel URL. Purely cosmetic - copy/share below still use the real
+  // referralLink above, not this string.
+  const referralDisplayLink = user?.referral_code
+    ? `bunagames.com/referral?ref=${user.referral_code}`
     : null;
 
   const loadStats = useCallback(async () => {
@@ -55,10 +63,18 @@ export default function Referral() {
     }
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
     if (!referralLink) return;
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}`;
-    window.open(shareUrl, '_blank');
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Buna Games', url: referralLink });
+        return;
+      } catch {
+        // User cancelled the share sheet, or it's unavailable - fall
+        // through to copying the link instead.
+      }
+    }
+    handleCopy();
   };
 
   return (
@@ -71,13 +87,10 @@ export default function Referral() {
         <div className="wallet-scroll-body">
           <div className="profile-identity-card">
             <span className="profile-avatar">
-              {(user?.telegram_first_name || user?.username || '?').trim().charAt(0).toUpperCase()}
+              {(user?.username || '?').trim().charAt(0).toUpperCase()}
             </span>
             <div className="profile-identity-text">
-              <strong>{user?.telegram_first_name || user?.username}</strong>
-              <span className="field-hint" style={{ margin: 0 }}>
-                {user?.telegram_phone || user?.username}
-              </span>
+              <strong>{user?.username}</strong>
             </div>
           </div>
 
@@ -127,7 +140,7 @@ export default function Referral() {
           {referralLink ? (
             <>
               <div className="referral-link-row">
-                <span className="referral-link-text">{referralLink}</span>
+                <span className="referral-link-text">{referralDisplayLink}</span>
                 <button type="button" className="icon-btn" onClick={handleCopy} aria-label="Copy referral link">
                   {copied ? (
                     <svg viewBox="0 0 24 24" fill="none" width="16" height="16">
