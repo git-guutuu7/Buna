@@ -37,15 +37,10 @@ export function getSocket() {
 }
 
 /* ---------------------------- Auth ---------------------------- */
-// Telegram Mini App auth is the only login path - the frontend sends
-// Telegram's signed initData (plus an optional referral code captured
-// from the bot's deep-link start parameter), the backend verifies it and
-// issues a JWT.
-export const telegramLogin = (initData, referralCode = null) =>
-  api.post('/auth/telegram', { initData, referral_code: referralCode });
+export const registerUser = (username, phone, password, referralCode = null) =>
+  api.post('/auth/register', { username, phone, password, referral_code: referralCode });
+export const loginUser = (username, password) => api.post('/auth/login', { username, password });
 export const getMe = () => api.get('/auth/me');
-export const verifyChannels = () => api.get('/auth/verify-channels');
-export const markBotLinkClicked = () => api.post('/auth/mark-bot-link-clicked');
 
 /* --------------------------- Wallet ---------------------------- */
 export const getBalance = () => api.get('/wallet/balance');
@@ -111,28 +106,6 @@ export const setBingoFee = (stakeAmount, platformFee) =>
   api.put('/admin/settings/bingo-fee', { stake_amount: stakeAmount, platform_fee: platformFee });
 export const adjustUserBalance = (id, amount, reason) =>
   api.patch(`/admin/users/${id}/balance`, { amount, reason });
-
-/* --------------------------- Admin: broadcast ---------------------- */
-export const sendBroadcast = (message, buttonText, buttonUrl, imageUrl) =>
-  api.post('/admin/broadcast', {
-    message,
-    button_text: buttonText || null,
-    button_url: buttonUrl || null,
-    image_url: imageUrl || null,
-  });
-
-export const getBroadcastHistory = () => api.get('/admin/broadcast/history');
-
-// Uploads an image file (from a file input) to the backend, which stores
-// it in Supabase Storage and returns a public URL. Uses FormData/
-// multipart since this is a real file, not JSON.
-export const uploadBroadcastImage = (file) => {
-  const formData = new FormData();
-  formData.append('image', file);
-  return api.post('/admin/upload-image', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-};
 
 /* --------------------------- Coupons ------------------------------- */
 export const redeemCoupon = (code) => api.post('/coupons/redeem', { code });
